@@ -10,7 +10,7 @@
  * No build step, no dependencies (uses HA's built-in <ha-icon>).
  */
 
-const VERSION = "1.0.0";
+const VERSION = "1.0.1";
 
 /* ---------- helpers ---------- */
 const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
@@ -365,15 +365,16 @@ const STYLE = `
 :host { display:block; }
 * { box-sizing:border-box; }
 .panel {
+  container-type: inline-size;
   position:relative;
+  width:100%;
   border-radius:20px;
-  padding:18px 20px 22px;
+  padding:18px clamp(14px,3cqw,22px) 22px;
   background:linear-gradient(180deg,#3a3d42 0%,#26282b 60%,#1d1f21 100%);
   color:#f5f6f7;
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
   font-weight:300;
-  overflow:hidden;
-  min-width:320px;
+  overflow:visible;
 }
 .panel.err { color:#ff6b6b; font-weight:400; }
 
@@ -391,8 +392,8 @@ const STYLE = `
 .menu { background:none; border:none; color:#dfe1e4; cursor:pointer; padding:2px; }
 .menu ha-icon { --mdc-icon-size:26px; }
 
-.body { display:flex; gap:20px; }
-.zones { flex:1 1 46%; display:flex; flex-direction:column; gap:14px; padding-top:4px; }
+.body { display:flex; flex-wrap:wrap; gap:24px; }
+.zones { flex:1 1 300px; display:flex; flex-direction:column; gap:14px; padding-top:4px; }
 
 .zone { display:grid; grid-template-columns:auto 1fr auto auto; align-items:center; gap:12px; }
 .pwr {
@@ -420,11 +421,19 @@ const STYLE = `
 .rtemp ha-icon { --mdc-icon-size:15px; color:#9aa0a6; }
 .boost { background:#0a8ed6; color:#fff; border-radius:4px; font-size:11px; padding:1px 4px; margin-right:4px; }
 
-.unit { flex:1 1 54%; position:relative; min-height:300px; }
-.ubtns { display:flex; gap:26px; align-items:flex-start; }
+.unit {
+  flex:1 1 360px;
+  display:grid;
+  grid-template-columns:1fr auto;
+  grid-template-areas:"btns btns" "set dial";
+  column-gap:16px; row-gap:10px;
+  align-items:start;
+}
+.ubtns { grid-area:btns; display:flex; gap:clamp(12px,4cqw,28px); align-items:flex-start; flex-wrap:wrap; }
 .ub { display:flex; flex-direction:column; align-items:center; gap:6px; }
+.ubtns .ub:first-child { flex-direction:row; align-items:center; gap:6px; }
 .ub .cap { font-size:15px; color:#e6e7e9; order:-1; min-height:18px; }
-.ub .timer { --mdc-icon-size:20px; color:#8b9096; position:absolute; }
+.ub .timer { --mdc-icon-size:20px; color:#8b9096; }
 .big-pwr {
   width:78px; height:78px; border-radius:50%; border:none; cursor:pointer;
   background:radial-gradient(circle at 32% 26%,#4a4d52,#2b2d30);
@@ -446,9 +455,9 @@ const STYLE = `
 .knobbtn ha-icon { --mdc-icon-size:34px; }
 .knobbtn.letter { color:#5db7e8; }
 
-.setpoint { position:absolute; left:4px; top:96px; }
+.setpoint { grid-area:set; align-self:center; }
 .setto { font-size:17px; color:#e6e7e9; }
-.setpoint .big { font-size:74px; line-height:.95; font-weight:200; letter-spacing:-2px; }
+.setpoint .big { font-size:clamp(46px,15cqw,76px); line-height:.95; font-weight:200; letter-spacing:-2px; }
 .cur { display:flex; align-items:center; gap:5px; font-size:18px; color:#dfe1e4; margin-top:2px; }
 .cur ha-icon { --mdc-icon-size:18px; color:#9aa0a6; }
 .steppers { display:flex; gap:10px; margin-top:10px; }
@@ -458,16 +467,29 @@ const STYLE = `
   box-shadow:inset 0 1px 1px rgba(255,255,255,.06), 0 1px 2px rgba(0,0,0,.4);
 }
 
-.dial { position:absolute; right:-46px; bottom:-56px; width:250px; height:250px; touch-action:none; cursor:pointer; }
-.dial svg { width:100%; height:100%; overflow:visible; }
+.dial {
+  grid-area:dial; align-self:center; justify-self:end;
+  width:clamp(150px,32cqw,240px); aspect-ratio:1;
+  touch-action:none; cursor:pointer;
+}
+.dial svg { width:100%; height:100%; overflow:visible; display:block; }
 .dial .track { fill:none; stroke:#111315; stroke-width:14; stroke-linecap:round; }
 .dial .val   { fill:none; stroke-width:14; stroke-linecap:round; filter:drop-shadow(0 0 6px rgba(56,189,248,.5)); }
 .dial .knob  { fill:#fff; filter:drop-shadow(0 1px 3px rgba(0,0,0,.6)); }
 
-@media (max-width:560px){
-  .body { flex-direction:column; }
-  .dial { position:relative; right:auto; bottom:auto; margin:10px auto 0; }
-  .setpoint { position:relative; left:auto; top:auto; margin-top:14px; }
+@container (max-width:640px){
+  .unit { grid-template-columns:1fr; grid-template-areas:"btns" "set" "dial"; justify-items:center; }
+  .setpoint { text-align:center; }
+  .cur, .steppers { justify-content:center; }
+  .dial { justify-self:center; }
+}
+@container (max-width:400px){
+  .big-pwr { width:64px; height:64px; }
+  .big-pwr ha-icon { --mdc-icon-size:32px; }
+  .knobbtn { width:54px; height:54px; font-size:22px; }
+  .knobbtn ha-icon { --mdc-icon-size:28px; }
+  .zname { font-size:19px; }
+  .mid { font-size:17px; }
 }
 `;
 
