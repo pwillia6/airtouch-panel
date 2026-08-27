@@ -10,7 +10,7 @@
  * No build step, no dependencies (uses HA's built-in <ha-icon>).
  */
 
-const VERSION = "1.0.2";
+const VERSION = "1.0.3";
 
 /* ---------- helpers ---------- */
 const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
