@@ -41,6 +41,9 @@ type: custom:airtouch-panel
 unit: climate.ac_0
 outside_temp: sensor.outdoor_meter_temperature
 schedule_name: Weekday
+grid_options:
+  rows: 1
+  columns: 26
 zones:
   - { name: Living R, climate: climate.living_r,    damper: cover.living_r_damper,    control: damper }
   - { name: Living I, climate: climate.living_i,    damper: cover.living_i_damper,    control: damper }
@@ -48,6 +51,10 @@ zones:
   - { name: Choy,     climate: climate.choy_room,   damper: cover.choy_room_damper,   control: damper }
   - { name: Master,   climate: climate.master_bed,  damper: cover.master_bed_damper,  control: temp }
 ```
+
+`grid_options` (a Home Assistant sections-view property, not a card option)
+makes the card span a full-width row on the dashboard grid so the landscape
+layout isn't cropped.
 
 ### Options
 

@@ -5,7 +5,24 @@
  *   1. Copy this file to  <config>/www/airtouch-panel.js
  *   2. Settings → Dashboards → ⋮ → Resources → Add resource
  *        URL: /local/airtouch-panel.js     Type: JavaScript module
- *   3. Add a card:  type: custom:airtouch-panel   (see example config at bottom)
+ *   3. Add a card (example):
+ *
+ *        type: custom:airtouch-panel
+ *        unit: climate.ac_0
+ *        outside_temp: sensor.outdoor_meter_temperature
+ *        schedule_name: Weekday
+ *        grid_options:
+ *          rows: 1
+ *          columns: 26
+ *        zones:
+ *          - { name: Living R, climate: climate.living_r,    damper: cover.living_r_damper,    control: damper }
+ *          - { name: Living I, climate: climate.living_i,    damper: cover.living_i_damper,    control: damper }
+ *          - { name: Paul,     climate: climate.paul_s_room, damper: cover.paul_s_room_damper, control: temp }
+ *          - { name: Choy,     climate: climate.choy_room,   damper: cover.choy_room_damper,   control: damper }
+ *          - { name: Master,   climate: climate.master_bed,  damper: cover.master_bed_damper,  control: temp }
+ *
+ *   grid_options (a sections-view property, not a card option) spans the card
+ *   across a full-width dashboard row so the landscape layout isn't cropped.
  *
  * No build step, no dependencies (uses HA's built-in <ha-icon>).
  */
@@ -78,6 +95,7 @@ class AirTouchPanel extends HTMLElement {
       unit: "climate.ac_0",
       outside_temp: "sensor.outdoor_meter_temperature",
       schedule_name: "Weekday",
+      grid_options: { rows: 1, columns: 26 },
       zones: [
         { name: "Living R", climate: "climate.living_r", damper: "cover.living_r_damper", control: "damper" },
         { name: "Living I", climate: "climate.living_i", damper: "cover.living_i_damper", control: "damper" },
