@@ -63,7 +63,7 @@ zones:
 | `name`    | yes      | –        | Row label. |
 | `climate` | yes      | –        | The zone `climate.*` entity. Drives the power toggle and the room-temp readout; also the setpoint when `control: temp`. |
 | `damper`  | when `control: damper` | – | The zone's `cover.*` damper entity. Drives the `− NN% +` control. |
-| `control` | no       | `damper` | `damper` → adjust damper % (5% steps). `temp` → adjust the zone setpoint (uses the climate entity's `target_temp_step`). Set this to match how each zone actually runs on your console (percentage vs ITC). |
+| `control` | no       | `damper` | The row's *initial* control: `damper` → damper % (5% steps), `temp` → zone setpoint (uses the climate entity's `target_temp_step`). Tap the value on the card to switch between the two at runtime (like tapping the figure on the real panel); this also flips the console's zone control method. Omit `damper` to lock the row to `temp`. |
 
 ## Entity mapping (Home Assistant `airtouch5` integration)
 

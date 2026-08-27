@@ -10,7 +10,7 @@
  * No build step, no dependencies (uses HA's built-in <ha-icon>).
  */
 
-const VERSION = "1.0.1";
+const VERSION = "1.0.2";
 
 /* ---------- helpers ---------- */
 const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
@@ -56,6 +56,7 @@ class AirTouchPanel extends HTMLElement {
     this._drag = null;         // {temp} while dragging the dial
     this._pending = {};        // optimistic values keyed by entity_id
     this._timers = {};         // debounce timers keyed by entity_id
+    this._zmode = {};          // per-zone active control, "temp" | "damper", keyed by climate entity
     this._bound = false;
   }
 
@@ -108,6 +109,12 @@ class AirTouchPanel extends HTMLElement {
       detail: { entityId }, bubbles: true, composed: true,
     }));
   }
+  // Which control the zone row is driving: "temp" (ITC setpoint) or "damper" (%).
+  // Runtime-toggled by tapping the value; falls back to the zone's `control:` option.
+  _zoneMode(z) {
+    if (!z.damper) return "temp";
+    return this._zmode[z.climate] || (z.control === "temp" ? "temp" : "damper");
+  }
 
   /* ---------- interaction ---------- */
   _onClick(e) {
@@ -159,12 +166,35 @@ class AirTouchPanel extends HTMLElement {
       const z = this._config.zones[Number(el.dataset.i)];
       this._moreInfo(z.climate);
     }
+    else if (act === "zone-cycle") {
+      // Tap the value to switch the row between damper % and ITC setpoint,
+      // like tapping the figure on the real AirTouch panel. Re-asserting the
+      // current value on the newly-selected control also flips the console's
+      // zone control method as a side effect.
+      const z = this._config.zones[Number(el.dataset.i)];
+      const cs = hass.states[z.climate];
+      if (!z.damper || !cs || cs.state === "off") return;
+      const next = this._zoneMode(z) === "temp" ? "damper" : "temp";
+      this._zmode[z.climate] = next;
+      delete this._pending[z.climate];
+      delete this._pending[z.damper];
+      if (next === "temp") {
+        const t = cs.attributes.temperature;
+        if (t != null) this._debounced(z.climate, () =>
+          this._call("climate", "set_temperature", { entity_id: z.climate, temperature: t }));
+      } else {
+        const p = (hass.states[z.damper] || {}).attributes?.current_position;
+        if (p != null) this._debounced(z.damper, () =>
+          this._call("cover", "set_cover_position", { entity_id: z.damper, position: p }));
+      }
+      this._render();
+    }
     else if (act === "zone-adjust") {
       const z = this._config.zones[Number(el.dataset.i)];
       const dir = Number(el.dataset.dir);
       const cs = hass.states[z.climate];
       if (cs.state === "off") return;
-      const mode = z.control === "temp" ? "temp" : "damper";
+      const mode = this._zoneMode(z);
       if (mode === "temp") {
         const step = cs.attributes.target_temp_step || 1;
         const lo = cs.attributes.min_temp ?? 16, hi = cs.attributes.max_temp ?? 30;
@@ -271,19 +301,23 @@ class AirTouchPanel extends HTMLElement {
       const on = cs.state !== "off";
       const roomTemp = cs.attributes.current_temperature;
       const boost = cs.attributes.preset_mode === "boost";
+      const zmode = this._zoneMode(z);
+      const canCycle = on && !!z.damper;
       let mid;
       if (!on) {
         mid = `<span class="mid off">Off</span>`;
-      } else if (z.control === "temp") {
+      } else if (zmode === "temp") {
         const t = this._pending[z.climate] ?? cs.attributes.temperature;
         mid = `<span class="mid"><button data-act="zone-adjust" data-i="${i}" data-dir="-1">−</button>
-                 <span class="box">${Math.round(t)}°</span>
+                 <span class="box val ${canCycle ? "cyc" : ""}" data-act="${canCycle ? "zone-cycle" : ""}" data-i="${i}"
+                   title="${canCycle ? "Switch to damper %" : ""}">${Math.round(t)}°</span>
                  <button data-act="zone-adjust" data-i="${i}" data-dir="1">+</button></span>`;
       } else {
         const ds = hass.states[z.damper] || { attributes: {} };
         const p = this._pending[z.damper] ?? ds.attributes.current_position ?? 0;
         mid = `<span class="mid"><button data-act="zone-adjust" data-i="${i}" data-dir="-1">−</button>
-                 <span class="pct">${Math.round(p)}%</span>
+                 <span class="pct val ${canCycle ? "cyc" : ""}" data-act="${canCycle ? "zone-cycle" : ""}" data-i="${i}"
+                   title="${canCycle ? "Switch to temperature" : ""}">${Math.round(p)}%</span>
                  <button data-act="zone-adjust" data-i="${i}" data-dir="1">+</button></span>`;
       }
       return `
@@ -417,6 +451,10 @@ const STYLE = `
 }
 .mid .box { min-width:44px; text-align:center; padding:2px 6px; border:1px solid #5b5e63; border-radius:7px; }
 .mid .pct { min-width:52px; text-align:center; }
+.mid .val.cyc { cursor:pointer; }
+.mid .pct.cyc { border-bottom:1px dashed rgba(255,255,255,.35); }
+.mid .box.cyc { border-style:dashed; }
+.mid .val.cyc:hover { color:#fff; border-color:#38c0ff; }
 .rtemp { display:flex; align-items:center; gap:3px; font-size:13px; color:#c7c9cc; }
 .rtemp ha-icon { --mdc-icon-size:15px; color:#9aa0a6; }
 .boost { background:#0a8ed6; color:#fff; border-radius:4px; font-size:11px; padding:1px 4px; margin-right:4px; }
