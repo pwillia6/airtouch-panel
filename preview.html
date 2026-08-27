@@ -1,0 +1,63 @@
+<!doctype html><html><head><meta charset="utf-8"><title>AirTouch Panel preview</title>
+<style>body{background:#0f1113;margin:0;padding:32px;font-family:sans-serif}
+#wrap{max-width:900px;margin:0 auto}h1{color:#888;font-weight:400;font-size:14px}</style></head>
+<body><div id="wrap"><h1>airtouch-panel.js — local preview (ha-icon stubbed with emoji)</h1><div id="host"></div></div>
+<script>
+// --- stub <ha-icon> so the card renders outside Home Assistant ---
+const EMO={ "mdi:power":"⏻","mdi:snowflake":"❄","mdi:fire":"🔥","mdi:water-percent":"💧",
+"mdi:fan":"🌀","mdi:autorenew":"♻","mdi:hvac":"❄","mdi:thermometer":"🌡","mdi:menu":"☰",
+"mdi:weather-sunny":"☀","mdi:timer-outline":"⏱","mdi:star-four-points":"✦" };
+class HaIcon extends HTMLElement{
+  static get observedAttributes(){return["icon"]}
+  connectedCallback(){this._r()} attributeChangedCallback(){this._r()}
+  _r(){this.textContent=EMO[this.getAttribute("icon")]||"•";
+    this.style.display="inline-flex";this.style.alignItems="center";this.style.justifyContent="center";
+    const s=getComputedStyle(this).getPropertyValue("--mdc-icon-size")||"20px";
+    this.style.fontSize=s;this.style.width=s;this.style.height=s;this.style.lineHeight="1";}
+}
+customElements.define("ha-icon",HaIcon);
+</script>
+<script type="module">
+import "./airtouch-panel.js";
+const mock = {
+  states: {
+    "climate.ac_0": { state:"heat", attributes:{ hvac_modes:["off","auto","cool","dry","fan_only","heat"],
+      fan_mode:"auto", fan_modes:["low","medium","high","auto","intelligent_auto"],
+      min_temp:16, max_temp:30, target_temp_step:1, current_temperature:19.3, temperature:22 } },
+    "sensor.outdoor_meter_temperature": { state:"31" },
+    "climate.living_r": { state:"fan_only", attributes:{ current_temperature:16.6, temperature:22, min_temp:16, max_temp:30, target_temp_step:1 } },
+    "cover.living_r_damper": { state:"open", attributes:{ current_position:100 } },
+    "climate.living_i": { state:"fan_only", attributes:{ current_temperature:17.9, temperature:22, preset_mode:"none" } },
+    "cover.living_i_damper": { state:"open", attributes:{ current_position:55 } },
+    "climate.paul_s_room": { state:"fan_only", attributes:{ current_temperature:19.3, temperature:19, min_temp:16, max_temp:30, target_temp_step:1 } },
+    "cover.paul_s_room_damper": { state:"open", attributes:{ current_position:100 } },
+    "climate.choy_room": { state:"off", attributes:{ current_temperature:17.9, temperature:22 } },
+    "cover.choy_room_damper": { state:"closed", attributes:{ current_position:0 } },
+    "climate.master_bed": { state:"off", attributes:{ current_temperature:18.8, temperature:20, min_temp:16, max_temp:30, target_temp_step:1 } },
+    "cover.master_bed_damper": { state:"open", attributes:{ current_position:10 } },
+  },
+  callService:(d,s,data)=>{ console.log("callService",d,s,data);
+    // naive local echo so the UI reacts in the preview
+    if(s==="set_temperature") mock.states[data.entity_id].attributes.temperature=data.temperature;
+    if(s==="set_cover_position") mock.states[data.entity_id].attributes.current_position=data.position;
+    if(s==="set_hvac_mode") mock.states[data.entity_id].state=data.hvac_mode;
+    if(s==="set_fan_mode") mock.states[data.entity_id].attributes.fan_mode=data.fan_mode;
+    if(s==="turn_off") mock.states[data.entity_id].state="off";
+    if(s==="turn_on") mock.states[data.entity_id].state = data.entity_id==="climate.ac_0" ? "heat" : "fan_only";
+    card.hass=mock;
+  },
+};
+const card = document.createElement("airtouch-panel");
+card.setConfig({ type:"custom:airtouch-panel", unit:"climate.ac_0",
+  outside_temp:"sensor.outdoor_meter_temperature", schedule_name:"Weekday",
+  zones:[
+    {name:"Living R",climate:"climate.living_r",damper:"cover.living_r_damper",control:"damper"},
+    {name:"Living I",climate:"climate.living_i",damper:"cover.living_i_damper",control:"damper"},
+    {name:"Paul",climate:"climate.paul_s_room",damper:"cover.paul_s_room_damper",control:"temp"},
+    {name:"Choy",climate:"climate.choy_room",damper:"cover.choy_room_damper",control:"damper"},
+    {name:"Master",climate:"climate.master_bed",damper:"cover.master_bed_damper",control:"temp"},
+  ]});
+card.hass = mock;
+document.getElementById("host").appendChild(card);
+</script>
+</body></html>
