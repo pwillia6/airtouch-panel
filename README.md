@@ -10,6 +10,8 @@ dependencies (it uses Home Assistant's built-in `<ha-icon>`).
 > Not affiliated with, or endorsed by, Polyaire / AirTouch. "AirTouch" is used
 > only to describe the interface this card resembles.
 
+![AirTouch Panel card](docs/preview.png)
+
 Run `preview.html` (see [Development](#development)) for a no-Home-Assistant
 mock render of the card.
 
