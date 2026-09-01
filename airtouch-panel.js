@@ -27,11 +27,13 @@
  * No build step, no dependencies (uses HA's built-in <ha-icon>).
  */
 
-const VERSION = "1.0.3";
+const VERSION = "1.0.4";
 
 /* ---------- helpers ---------- */
 const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
 const round = (n, step) => Math.round(n / step) * step;
+const isNA = (s) => !s || s.state === "unavailable" || s.state === "unknown";
+const titlecase = (s) => String(s).replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
 function polar(cx, cy, r, angleDeg) {
   const a = (angleDeg - 90) * (Math.PI / 180);
@@ -141,6 +143,16 @@ class AirTouchPanel extends HTMLElement {
     const act = el.dataset.act;
     const hass = this._hass;
 
+    if (act === "menu") { this._moreInfo(this._config.unit); return; }
+
+    // block controls for unavailable entities (still allow more-info via hold/name)
+    const unitActs = ["unit-power", "unit-mode", "unit-fan", "unit-temp"];
+    if (unitActs.includes(act) && isNA(hass.states[this._config.unit])) return;
+    if (act.startsWith("zone-") && act !== "zone-name") {
+      const z = this._config.zones[Number(el.dataset.i)];
+      if (isNA(hass.states[z && z.climate])) return;
+    }
+
     if (act === "unit-power") {
       const s = hass.states[this._config.unit];
       this._call("climate", s.state === "off" ? "turn_on" : "turn_off", { entity_id: this._config.unit });
@@ -237,9 +249,10 @@ class AirTouchPanel extends HTMLElement {
   _onPointerDown(e) {
     const dial = e.target.closest("[data-act='dial']");
     if (!dial) return;
+    const s = this._hass.states[this._config.unit];
+    if (isNA(s)) return;
     e.preventDefault();
     const svg = this._root.querySelector(".dial svg");
-    const s = this._hass.states[this._config.unit];
     const lo = s.attributes.min_temp ?? 16, hi = s.attributes.max_temp ?? 30;
     const step = s.attributes.target_temp_step || 1;
     const move = (ev) => {
@@ -295,8 +308,9 @@ class AirTouchPanel extends HTMLElement {
     const u = hass.states[cfg.unit];
     if (!u) { this._root.innerHTML = `<div class="panel err">Unknown entity: ${cfg.unit}</div>`; return; }
 
-    const uOff = u.state === "off";
-    const mode = uOff ? "off" : u.state;
+    const uNA = isNA(u);
+    const uOff = !uNA && u.state === "off";
+    const mode = uNA || uOff ? "off" : u.state;
     const setTemp = this._drag ? this._drag.temp : (this._pending[cfg.unit] ?? u.attributes.temperature);
     const curTemp = u.attributes.current_temperature;
     const lo = u.attributes.min_temp ?? 16, hi = u.attributes.max_temp ?? 30;
@@ -306,23 +320,25 @@ class AirTouchPanel extends HTMLElement {
     const valPath = arcPath(100, 100, 88, START, START + f * SWEEP);
     const [kx, ky] = polar(100, 100, 88, START + f * SWEEP);
 
-    const fan = u.attributes.fan_mode || "";
+    const fan = uNA ? "" : (u.attributes.fan_mode || "");
     const fanLetter = fan ? fan[0].toUpperCase() : "–";
-    const fanLabel = fan ? fan.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : "";
+    const fanLabel = fan ? titlecase(fan) : "";
 
-    const outside = cfg.outside_temp && hass.states[cfg.outside_temp]
-      ? Math.round(Number(hass.states[cfg.outside_temp].state)) : null;
+    const ov = Number(hass.states[cfg.outside_temp]?.state);
+    const outside = Number.isFinite(ov) ? Math.round(ov) : null;
 
     const zonesHtml = cfg.zones.map((z, i) => {
       const cs = hass.states[z.climate];
-      if (!cs) return `<div class="zone"><span class="zname">?${z.name}</span></div>`;
-      const on = cs.state !== "off";
-      const roomTemp = cs.attributes.current_temperature;
-      const boost = cs.attributes.preset_mode === "boost";
+      const zNA = isNA(cs);
+      const on = !zNA && cs.state !== "off";
+      const roomTemp = zNA ? null : cs.attributes.current_temperature;
+      const boost = !zNA && cs.attributes.preset_mode === "boost";
       const zmode = this._zoneMode(z);
       const canCycle = on && !!z.damper;
       let mid;
-      if (!on) {
+      if (zNA) {
+        mid = `<span class="mid off">${cs ? "Unavailable" : "?"}</span>`;
+      } else if (!on) {
         mid = `<span class="mid off">Off</span>`;
       } else if (zmode === "temp") {
         const t = this._pending[z.climate] ?? cs.attributes.temperature;
@@ -339,7 +355,7 @@ class AirTouchPanel extends HTMLElement {
                  <button data-act="zone-adjust" data-i="${i}" data-dir="1">+</button></span>`;
       }
       return `
-        <div class="zone">
+        <div class="zone ${zNA ? "na" : ""}">
           <button class="pwr ${on ? "on" : ""}" data-act="zone-power" data-i="${i}" title="Toggle ${z.name}">
             <ha-icon icon="mdi:power"></ha-icon>
           </button>
@@ -364,16 +380,16 @@ class AirTouchPanel extends HTMLElement {
         <div class="body">
           <div class="zones">${zonesHtml}</div>
 
-          <div class="unit">
+          <div class="unit ${uNA ? "na" : ""}">
             <div class="ubtns">
               <div class="ub">
-                <button class="big-pwr ${uOff ? "" : "on"}" data-act="unit-power">
+                <button class="big-pwr ${!uNA && !uOff ? "on" : ""}" data-act="unit-power">
                   <ha-icon icon="mdi:power"></ha-icon>
                 </button>
                 <ha-icon class="timer" icon="mdi:timer-outline"></ha-icon>
               </div>
               <div class="ub">
-                <span class="cap">${uOff ? "Off" : mode.replace("_", " ").replace(/\b\w/, (c) => c.toUpperCase())}</span>
+                <span class="cap">${uNA ? "Unavailable" : uOff ? "Off" : titlecase(mode)}</span>
                 <button class="knobbtn" data-act="unit-mode" style="--c:${MODE_COLOR[mode] || "#8a8f98"}">
                   <ha-icon icon="${MODE_ICON[mode] || "mdi:hvac"}"></ha-icon>
                 </button>
@@ -547,6 +563,14 @@ const STYLE = `
   .zname { font-size:19px; }
   .mid { font-size:17px; }
 }
+
+/* unavailable / unknown entities */
+.unit.na { opacity:.45; }
+.unit.na .knobbtn, .unit.na .steppers, .unit.na .dial { pointer-events:none; }
+.unit.na .dial .val, .unit.na .dial .knob { display:none; }
+.unit.na .cap { color:#9aa0a6; }
+.zone.na { opacity:.45; }
+.zone.na .pwr { pointer-events:none; }
 `;
 
 customElements.define("airtouch-panel", AirTouchPanel);
