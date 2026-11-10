@@ -27,7 +27,7 @@
  * No build step, no dependencies (uses HA's built-in <ha-icon>).
  */
 
-const VERSION = "1.0.4";
+const VERSION = "1.0.5";
 
 /* ---------- helpers ---------- */
 const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
@@ -84,9 +84,11 @@ class AirTouchPanel extends HTMLElement {
     this._config = {
       schedule_name: "Weekday",
       outside_temp: null,
+      last_mode_helper: null,
       zones: [],
       ...config,
     };
+    this._syncedMode = null; // last hvac_mode we pushed into last_mode_helper, to avoid redundant calls
   }
 
   getCardSize() { return 6; }
@@ -97,6 +99,7 @@ class AirTouchPanel extends HTMLElement {
       unit: "climate.ac_0",
       outside_temp: "sensor.outdoor_meter_temperature",
       schedule_name: "Weekday",
+      last_mode_helper: "input_select.airtouch_ac_last_mode",
       grid_options: { rows: 1, columns: 26 },
       zones: [
         { name: "Living R", climate: "climate.living_r", damper: "cover.living_r_damper", control: "damper" },
@@ -155,7 +158,23 @@ class AirTouchPanel extends HTMLElement {
 
     if (act === "unit-power") {
       const s = hass.states[this._config.unit];
-      this._call("climate", s.state === "off" ? "turn_on" : "turn_off", { entity_id: this._config.unit });
+      if (s.state !== "off") {
+        this._call("climate", "turn_off", { entity_id: this._config.unit });
+      } else {
+        // HA core's generic turn_on fallback always picks HEAT over COOL when a unit
+        // has no heat_cool mode (fixed priority: heat_cool, heat, cool) - airtouch5
+        // doesn't implement its own turn_on, so plain climate.turn_on means "always
+        // start heating" regardless of season. Explicitly restore whatever mode was
+        // last used instead, via the configured helper.
+        const modes = s.attributes.hvac_modes || [];
+        const helper = this._config.last_mode_helper && hass.states[this._config.last_mode_helper];
+        const remembered = helper && !isNA(helper) ? helper.state : null;
+        if (remembered && modes.includes(remembered)) {
+          this._call("climate", "set_hvac_mode", { entity_id: this._config.unit, hvac_mode: remembered });
+        } else {
+          this._call("climate", "turn_on", { entity_id: this._config.unit });
+        }
+      }
     }
     else if (act === "unit-mode") {
       const s = hass.states[this._config.unit];
@@ -311,6 +330,17 @@ class AirTouchPanel extends HTMLElement {
     const uNA = isNA(u);
     const uOff = !uNA && u.state === "off";
     const mode = uNA || uOff ? "off" : u.state;
+
+    // Keep last_mode_helper in sync with whatever real (non-off) mode the unit is
+    // actually running, so the next power-on can restore it (see unit-power above).
+    if (!uNA && !uOff && cfg.last_mode_helper && mode !== this._syncedMode) {
+      this._syncedMode = mode;
+      const helper = hass.states[cfg.last_mode_helper];
+      if (helper && helper.state !== mode && (helper.attributes.options || []).includes(mode)) {
+        this._call("input_select", "select_option", { entity_id: cfg.last_mode_helper, option: mode });
+      }
+    }
+
     const setTemp = this._drag ? this._drag.temp : (this._pending[cfg.unit] ?? u.attributes.temperature);
     const curTemp = u.attributes.current_temperature;
     const lo = u.attributes.min_temp ?? 16, hi = u.attributes.max_temp ?? 30;

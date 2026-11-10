@@ -41,6 +41,7 @@ type: custom:airtouch-panel
 unit: climate.ac_0
 outside_temp: sensor.outdoor_meter_temperature
 schedule_name: Weekday
+last_mode_helper: input_select.airtouch_ac_last_mode
 grid_options:
   rows: 1
   columns: 26
@@ -64,6 +65,9 @@ layout isn't cropped.
 | `zones`         | yes      | `[]`        | List of zone rows (see below). |
 | `outside_temp`  | no       | –           | Any entity whose state is a temperature; shown top-right. Hidden if unset. |
 | `schedule_name` | no       | `Weekday`   | Static text shown in the top bar next to the star icon. |
+| `last_mode_helper` | no   | –           | An `input_select` entity (options = the unit's non-`off` `hvac_modes`, e.g. `auto,cool,dry,fan_only,heat`) that the card keeps updated with whatever real mode the unit is running. When you tap the power button to turn the unit back on, the card restores this mode via `climate.set_hvac_mode` instead of a bare `climate.turn_on`. **Why this exists:** AirTouch5 doesn't implement its own `turn_on`, so it falls through to Home Assistant's generic fallback, which tries modes in a fixed order (`heat_cool`, `heat`, `cool`, ...) - for a unit with no `heat_cool` mode that means `turn_on` **always lands on heat**, no matter the season or what was running before. Omit this option to keep the old (seasonal-bug) behaviour. |
+
+To create the helper: **Settings → Devices & Services → Helpers → + Create helper → Dropdown**, name it, and add one option per non-`off` entry in your unit's `hvac_modes` (check its state attributes to get the exact list/spelling).
 
 ### Zone options
 
